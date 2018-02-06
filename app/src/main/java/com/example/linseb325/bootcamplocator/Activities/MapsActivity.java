@@ -1,6 +1,8 @@
 package com.example.linseb325.bootcamplocator.Activities;
 
 import android.Manifest;
+import android.content.Intent;
+import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.support.annotation.NonNull;
@@ -12,16 +14,25 @@ import android.util.Log;
 
 import com.example.linseb325.bootcamplocator.Fragments.MainFragment;
 import com.example.linseb325.bootcamplocator.R;
+import com.google.android.gms.common.api.ResolvableApiException;
 import com.google.android.gms.location.*;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 
 
 public class MapsActivity extends FragmentActivity {
 
     private final String TAG = "Brennan";
     private final int PERMISSION_LOCATION_COARSE = 1;
+    private final int REQUEST_CHECK_SETTINGS = 2;
+
+    private MainFragment mainFragment;
 
     private FusedLocationProviderClient locationClient;
+    private LocationCallback locationCallback;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -30,13 +41,26 @@ public class MapsActivity extends FragmentActivity {
 
         this.locationClient = LocationServices.getFusedLocationProviderClient(this);
 
+        this.locationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(LocationResult locationResult) {
+                super.onLocationResult(locationResult);
+                Log.d(TAG, "Got location result");
+
+                for (Location location : locationResult.getLocations()) {
+                    Log.d(TAG, String.format("A location: %.3f, %.3f", location.getLatitude(), location.getLongitude()));
+                    mainFragment.setUserMarker(new LatLng(location.getLatitude(), location.getLongitude()));
+                }
+            }
+        };
+
         startLocationServices();
 
-        MainFragment mainFrag = (MainFragment) getSupportFragmentManager().findFragmentById(R.id.container_main);
+        mainFragment = (MainFragment) getSupportFragmentManager().findFragmentById(R.id.container_main);
 
-        if (mainFrag == null) {
-            mainFrag = MainFragment.newInstance();
-            getSupportFragmentManager().beginTransaction().add(R.id.container_main, mainFrag).commit();
+        if (mainFragment == null) {
+            mainFragment = MainFragment.newInstance();
+            getSupportFragmentManager().beginTransaction().add(R.id.container_main, mainFragment).commit();
         }
     }
 
@@ -53,10 +77,55 @@ public class MapsActivity extends FragmentActivity {
             ActivityCompat.requestPermissions(this, new String[] {Manifest.permission.ACCESS_COARSE_LOCATION}, PERMISSION_LOCATION_COARSE);
         } else {
             // Location permission has been granted.
-            // Get the last location and print it to the screen.
+            // Request location updates.
             Log.d(TAG, "Location permission has been granted");
             try {
                 Log.d(TAG, "Got into try block in startLocationServices");
+
+                // Create the location request.
+                final LocationRequest request = this.createLocationRequest(5000, 1000, LocationRequest.PRIORITY_LOW_POWER);
+
+                // Add the location request to the location settings.
+                LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder().addLocationRequest(request);
+
+                SettingsClient client = LocationServices.getSettingsClient(this);
+                Task<LocationSettingsResponse> task = client.checkLocationSettings(builder.build());
+
+                // What to do when the settings request is successful.
+                // This means that location settings are satisfied for the given location request.
+                task.addOnSuccessListener(new OnSuccessListener<LocationSettingsResponse>() {
+                    @Override
+                    public void onSuccess(LocationSettingsResponse locationSettingsResponse) {
+                        Log.d(TAG, "Location settings response succeeded.\nIs location usable? -> "
+                                + locationSettingsResponse.getLocationSettingsStates().isLocationUsable());
+                        if (locationSettingsResponse.getLocationSettingsStates().isLocationUsable()) {
+                            Log.d(TAG, "Requesting location updates now");
+                            locationClient.requestLocationUpdates(request, locationCallback, null);
+                        }
+                    }
+                });
+
+                // What to do when the settings request fails.
+                // This means that location settings are NOT satisfied for the given location request.
+                task.addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        Log.d(TAG, "Exception in OnFailureListener: " + e.getLocalizedMessage());
+                        if (e instanceof ResolvableApiException) {
+                            try {
+                                Log.d(TAG, "Trying to resolve the ResolvableApiException in OnFailureListener");
+                                ResolvableApiException resolvable = (ResolvableApiException) e;
+                                resolvable.startResolutionForResult(MapsActivity.this, REQUEST_CHECK_SETTINGS);
+                            } catch (IntentSender.SendIntentException sendException) {
+                                Log.d(TAG, "Couldn't resolve the exception: " + sendException.getLocalizedMessage());
+                            }
+                        }
+                        else {
+                            Log.d(TAG, "e isn't an instance of ResolvableApiException");
+                        }
+                    }
+                });
+
                 locationClient.getLastLocation().addOnSuccessListener(this, new OnSuccessListener<Location>() {
                     @Override
                     public void onSuccess(Location location) {
@@ -71,8 +140,21 @@ public class MapsActivity extends FragmentActivity {
                 Log.d(TAG, exception.getLocalizedMessage());
             }
         }
+    }
 
-        Log.d(TAG, "End of startLocationServices call");
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        switch (requestCode) {
+            case REQUEST_CHECK_SETTINGS:
+                if (resultCode == RESULT_OK) {
+                    Log.d(TAG, "Resolved the API exception.");
+                } else {
+                    Log.d(TAG, "Couldn't resolve the API exception.");
+                }
+        }
     }
 
 
@@ -91,5 +173,14 @@ public class MapsActivity extends FragmentActivity {
                     startLocationServices();
                 }
         }
+    }
+
+    private LocationRequest createLocationRequest(long interval, long fastestInterval, int priority) {
+        // Create and configure a location request.
+        LocationRequest request = new LocationRequest();
+        request.setInterval(interval);
+        request.setFastestInterval(fastestInterval);
+        request.setPriority(priority);
+        return request;
     }
 }
