@@ -41,6 +41,7 @@ public class MapsActivity extends FragmentActivity {
 
         this.locationClient = LocationServices.getFusedLocationProviderClient(this);
 
+        // Configures the location callback object.
         this.locationCallback = new LocationCallback() {
             @Override
             public void onLocationResult(LocationResult locationResult) {
@@ -74,7 +75,7 @@ public class MapsActivity extends FragmentActivity {
             // Location permission has NOT been granted.
             // Request permission to use location.
             Log.d(TAG, "Requesting permission to use location");
-            ActivityCompat.requestPermissions(this, new String[] {Manifest.permission.ACCESS_COARSE_LOCATION}, PERMISSION_LOCATION_COARSE);
+            ActivityCompat.requestPermissions(this, new String[] {Manifest.permission.ACCESS_COARSE_LOCATION}, this.PERMISSION_LOCATION_COARSE);
         } else {
             // Location permission has been granted.
             // Request location updates.
@@ -126,6 +127,7 @@ public class MapsActivity extends FragmentActivity {
                     }
                 });
 
+                // Gets the last known location of the device.
                 locationClient.getLastLocation().addOnSuccessListener(this, new OnSuccessListener<Location>() {
                     @Override
                     public void onSuccess(Location location) {

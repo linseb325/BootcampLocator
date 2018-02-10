@@ -1,20 +1,26 @@
 package com.example.linseb325.bootcamplocator.Fragments;
 
 
-import android.location.Location;
+import android.graphics.Camera;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
+import com.example.linseb325.bootcamplocator.Model.BootcampLocation;
 import com.example.linseb325.bootcamplocator.R;
+import com.example.linseb325.bootcamplocator.Services.DataService;
+import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
+
+import java.util.ArrayList;
 
 /**
  * A simple {@link Fragment} subclass.
@@ -84,6 +90,25 @@ public class MainFragment extends Fragment {
             mMap.addMarker(userMarker);
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15));
         }
+
+        updateMapForZip(53097);
+
+    }
+
+    private void updateMapForZip(int zipCode) {
+
+        ArrayList<BootcampLocation> locations = DataService.getInstance().getBootcampLocationsNear(zipCode);
+
+        for (BootcampLocation loc : locations) {
+            MarkerOptions marker = new MarkerOptions()
+                    .position(new LatLng(loc.getLatitude(), loc.getLongitude()))
+                    .title(loc.getLocationTitle())
+                    .snippet(loc.getLocationAddress())
+                    .icon(BitmapDescriptorFactory.fromResource(R.drawable.map_pin));
+            mMap.addMarker(marker);
+            mMap.moveCamera(CameraUpdateFactory.newLatLng(new LatLng(43.254467, -87.915633)));
+        }
+
     }
 
 
